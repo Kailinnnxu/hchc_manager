@@ -136,6 +136,7 @@ A web application for organization/community management focused on professional 
 
 - **Attendance Tracking** (Admin/Manager Access)
   - Mark attendees as "attended" or "absent" for events
+  - Able to add 'insider notes'
   - View attendance list for each event
   - Filter attendees by attendance status
   - Bulk mark attendance operations
@@ -213,7 +214,7 @@ A web application for organization/community management focused on professional 
     - Email (already collected during registration)
     - WeChat (essential for communication)
     - Linkedin
-    - Primay City, Country 
+    - Primary City, Country 
     - Secondary City, Country
   - **Step 2: Professional** (~1.5 min)
     - Current role/title
@@ -253,11 +254,14 @@ A web application for organization/community management focused on professional 
     "personal_info": {
       "first_name": "string",
       "last_name": "string",
-      "city": "string?",
-      "country": "string?"
+      "primary_city": "string?",
+      "primary_country": "string?",
+      "secondary_city": "string?",
+      "secondary_country": "string?"
     },
     "contact": {
-      "wechat": "string" // Essential for communication
+      "wechat": "string", // Essential for communication
+      "linkedin": "string?" // LinkedIn profile URL
     },
     "professional": {
       "stage": "enum", // student, early-career, mid-career, senior, executive, founder, investor, academic
@@ -274,7 +278,11 @@ A web application for organization/community management focused on professional 
     "interests": {
       "professional_interests": ["string"], // Quick tags
       "can_offer": "string?", // Brief text
-      "looking_for": "string?" // Brief text
+      "looking_for": "string?", // Brief text
+      "affiliations": ["string"]? // Professional organizations, alumni networks, accelerators, board positions, advisory roles
+    },
+    "onboarding_metadata": {
+      "where_did_you_hear_about_us": "enum?" // XHS, Wechat GZH, word of mouth, related group chats
     },
     "consent": {
       "share_with_presenter": "boolean",
@@ -401,13 +409,14 @@ A web application for organization/community management focused on professional 
 #### User_Profiles (Extended Profile Data)
 - `id` (UUID, Primary Key)
 - `user_id` (UUID, Foreign Key -> Users, Unique)
-- `personal_info` (JSONB, Nullable) - {city, state_province, country, timezone, languages, date_of_birth}
-- `contact_info` (JSONB, Nullable) - {wechat, phone, linkedin, twitter, personal_website, github, preferred_contact_method}
+- `personal_info` (JSONB, Nullable) - {primary_city, primary_country, secondary_city, secondary_country, state_province, timezone, languages, date_of_birth} - primary_city/country collected in onboarding
+- `contact_info` (JSONB, Nullable) - {wechat, phone, linkedin, twitter, personal_website, github, preferred_contact_method} - wechat and linkedin collected in onboarding
 - `professional_info` (JSONB, Nullable) - {stage, current_company, company_website, company_size, company_funding_stage, role_title, role_category, department, years_in_current_role, years_total_experience, reports_to, team_size, fields, years_experience_per_field, previous_companies, current_projects, notable_achievements}
 - `education` (JSONB, Nullable) - Array of {degree, degree_level, school, school_type, major, minor, grad_year, gpa, honors, extracurriculars, study_abroad, thesis_dissertation_topic}
-- `interests` (JSONB, Nullable) - {professional_interests, can_offer, looking_for, event_types_preferred, networking_goals}
+- `interests` (JSONB, Nullable) - {professional_interests, can_offer, looking_for, affiliations, event_types_preferred, networking_goals} - basic affiliations collected in onboarding
 - `bio` (JSONB, Nullable) - {short, long, elevator_pitch, key_achievements, publications, speaking_experience, media_mentions}
-- `affiliations` (JSONB, Nullable) - {professional_organizations, alumni_networks, accelerators_programs, board_positions, advisory_roles, investor_network, mentor_programs}
+- `affiliations` (JSONB, Nullable) - {professional_organizations, alumni_networks, accelerators_programs, board_positions, advisory_roles, investor_network, mentor_programs} - detailed affiliations (extended profile)
+- `onboarding_metadata` (JSONB, Nullable) - {where_did_you_hear_about_us} - collected during onboarding
 - `investment` (JSONB, Nullable) - {is_investor, investment_focus, investment_stage, typical_check_size, portfolio_companies, seeking_funding, funding_stage_seeking, funding_amount_seeking}
 - `research` (JSONB, Nullable) - {research_interests, current_research, lab_institution, grants_received, patents}
 - `consent` (JSONB, Nullable) - {share_with_presenter, public_directory, notifications, data_enrichment, profile_completeness_public, contact_sharing, linkedin_import, marketing_communications}
@@ -672,14 +681,15 @@ A web application for organization/community management focused on professional 
   - Returns all past events with application status and attendance status
   - Filterable by date range, event status, attendance status
 
-#### Onboarding (Quick - 5 steps, ~4 minutes)
+#### Onboarding (Quick - 6 steps, ~4 minutes)
 - `GET /api/onboarding/status` - Get current onboarding status and step
-- `POST /api/onboarding/step/:stepNumber` - Submit onboarding step data (steps 1-5)
-  - Step 1: Basic info (name, city, country)
+- `POST /api/onboarding/step/:stepNumber` - Submit onboarding step data (steps 1-6)
+  - Step 1: Basic info (name, WeChat, LinkedIn, primary city/country, secondary city/country)
   - Step 2: Professional (role, company, stage, experience)
   - Step 3: Education (degree, school, major, grad year)
-  - Step 4: Interests (professional interests, can_offer, looking_for)
-  - Step 5: Consent (privacy settings, data enrichment)
+  - Step 4: Interests & Goals (professional interests, can_offer, looking_for, affiliations)
+  - Step 5: Other Information (where did you hear about us)
+  - Step 6: Consent (privacy settings, data enrichment)
 - `PUT /api/onboarding/step/:stepNumber` - Update onboarding step data
 - `GET /api/onboarding/profile` - Get onboarding profile data
 - `POST /api/onboarding/complete` - Mark onboarding as complete (triggers LLM enrichment automatically)
@@ -715,7 +725,9 @@ A web application for organization/community management focused on professional 
 6. **Step 1: Basic Info** (~1 min)
    - First name, last name
    - WeChat (essential for communication)
-   - City, country (optional)
+   - LinkedIn
+   - Primary city, country
+   - Secondary city, country
 7. **Step 2: Professional** (~1.5 min)
    - Current role/title
    - Current company
@@ -730,10 +742,13 @@ A web application for organization/community management focused on professional 
    - Professional interests (quick tag selection)
    - What can you offer? (brief text)
    - What are you looking for? (brief text)
-10. **Step 5: Consent** (~30 sec)
+   - Affiliations (professional organizations, alumni networks, accelerators, board positions, advisory roles)
+10. **Step 5: Other Information**
+    - Where did you hear about us (XHS, Wechat GZH, word of mouth, related group chats)
+11. **Step 6: Consent** (~30 sec)
     - Essential privacy settings
     - Data enrichment consent
-11. Onboarding complete → LLM enrichment triggered automatically
+12. Onboarding complete → LLM enrichment triggered automatically
 12. Dashboard shown with profile completion indicator
 13. User can start browsing events immediately
 14. Profile editing available to add detailed information later
@@ -908,7 +923,7 @@ A web application for organization/community management focused on professional 
 
 ### Phase 1: MVP (Minimum Viable Product)
 - User authentication (email/password)
-- Quick onboarding system (5 steps, ~4 minutes)
+- Quick onboarding system (6 steps, ~4 minutes)
 - Extended profile editing (users can add detailed information after onboarding)
 - Basic organization management
 - Role-based access control (regular users vs managers/admins)
